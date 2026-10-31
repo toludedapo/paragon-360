@@ -86,14 +86,20 @@ h1{font-family:var(--display);font-weight:400;font-size:22px;line-height:1.1;mar
 <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
 <script>
 const SPOTS = [
-  {id:"entrance",  name:"Entrance",           states:["noon","dusk"]},
-  {id:"reception", name:"Reception",          states:["noon","dusk"]},
-  {id:"stairb",    name:"Staircase B",        states:["noon","dusk","blackout"]},
-  {id:"gangway",   name:"First-floor gangway",states:["noon","dusk","blackout"]},
-  {id:"four",      name:"Room of Four",       states:["noon","dusk","blackout"]},
-  {id:"laundry",   name:"Laundry",            states:["noon","dusk"]},
-  {id:"inverter",  name:"Inverter room",      states:["noon","dusk"]},
-  {id:"courtyard", name:"Courtyard",          states:["noon","dusk","blackout"]}
+  {id:"aerial",    name:"Aerial view",          states:["noon","dusk"]},
+  {id:"front",     name:"Front view",           states:["noon","dusk","blackout"]},
+  {id:"entrance",  name:"Entrance",             states:["noon","dusk"]},
+  {id:"reception", name:"Reception",            states:["noon","dusk"]},
+  {id:"reading",   name:"Reading room",         states:["noon","dusk"]},
+  {id:"stairb",    name:"Staircase B",          states:["noon","dusk","blackout"]},
+  {id:"gangway",   name:"First-floor corridor", states:["noon","dusk","blackout"]},
+  {id:"balconyff", name:"Upstairs balcony",     states:["noon","dusk"]},
+  {id:"balconygf", name:"Downstairs walkway",   states:["noon","dusk","blackout"]},
+  {id:"four",      name:"Room of Four",         states:["noon","dusk","blackout"]},
+  {id:"roomtwo",   name:"Room of Two",          states:["noon","dusk"]},
+  {id:"laundry",   name:"Laundry",              states:["noon","dusk"]},
+  {id:"inverter",  name:"Inverter room",        states:["noon","dusk"]},
+  {id:"courtyard", name:"Courtyard",            states:["noon","dusk","blackout"]}
 ];
 const TEXT = {
   noon:     "<b>12:00, daylight.</b> Solar runs the hostel and charges the battery.",
@@ -103,14 +109,16 @@ const TEXT = {
 const TEXT_SPOT = {
   "four:blackout": "<b>1 am, battery at 20%.</b> The inverter has cut off, so the room stays dark until the sun returns at about 8 am.",
   "inverter:noon": "<b>12:00.</b> Solar charging the 10 × 15 kWh battery bank.",
-  "inverter:dusk": "<b>7 pm.</b> The battery bank now supplies the whole hostel."
+  "inverter:dusk": "<b>7 pm.</b> The battery bank now supplies the whole hostel.",
+  "aerial:noon": "<b>12:00, the whole site.</b> 75 kWp of solar panels on the roofs power the hostel by day.",
+  "front:blackout": "<b>1 am, battery at 20%.</b> The inverter has cut off; only moonlight and the exit signs remain until about 8 am."
 };
 const scenes = {};
 for (const sp of SPOTS) for (const st of sp.states)
   scenes[sp.id+"_"+st] = {type:"equirectangular", panorama: sp.id+"_"+st+".jpg", hfov:105, pitch:-5, yaw:0};
 
 const status = document.getElementById("status");
-let spot = SPOTS.find(s=>s.id==="four"), state = "dusk";
+let spot = SPOTS.find(s=>s.id==="aerial"), state = "noon";
 try { const h = location.hash.slice(1); const f = SPOTS.find(s=>s.id===h); if (f) spot = f; } catch(e) {}
 
 const sel = document.getElementById("spotSel");
