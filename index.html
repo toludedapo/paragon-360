@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Paragon Hostel 360</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;600&family=Gloock&display=swap">
+<style>
+/* Layout: full-screen panorama, title chip top-left, time-of-day switch docked bottom. Single dark look by choice. */
+:root{
+  --ink:#0d0f12; --glass:rgba(13,15,18,.72); --line:rgba(236,231,222,.18);
+  --text:#ece7de; --muted:#a9a297; --laterite:#c8643b; --night:#6f8fd8;
+  --display:"Gloock",Georgia,serif; --ui:"Familjen Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{background:var(--ink);color:var(--text);font-family:var(--ui);overflow:hidden;-webkit-tap-highlight-color:transparent}
+#pano{position:fixed;inset:0;background:var(--ink)}
+/* minimal Pannellum shell (its own stylesheet can't load here) */
+.pnlm-container{margin:0;padding:0;overflow:hidden;position:relative;width:100%;height:100%;touch-action:none;outline:0}
+.pnlm-ui,.pnlm-render-container,.pnlm-dragfix{position:absolute;inset:0;width:100%;height:100%}
+.pnlm-ui{z-index:1}
+.pnlm-grab{cursor:grab}.pnlm-grabbing{cursor:grabbing}
+.pnlm-controls-container,.pnlm-load-box,.pnlm-info-box,.pnlm-about-msg,.pnlm-panorama-info,.pnlm-error-msg,.pnlm-compass,.pnlm-orientation-button,.pnlm-load-button,.pnlm-hot-spot-debug-indicator,.pnlm-tooltip,.pnlm-sprite{display:none!important}
+
+.top{position:fixed;top:calc(env(safe-area-inset-top,0px) + 12px);left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));display:flex;justify-content:space-between;align-items:flex-start;gap:12px;z-index:5;pointer-events:none}
+.chip{pointer-events:auto;background:var(--glass);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:14px;padding:10px 14px;min-width:0}
+.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.selwrap{position:relative;display:flex;align-items:center;gap:6px;margin-top:2px}
+.selwrap svg{position:absolute;right:0;pointer-events:none;color:var(--muted)}
+#spotSel{appearance:none;-webkit-appearance:none;background:transparent;border:0;color:var(--text);font-family:var(--display);font-size:22px;line-height:1.15;padding:0 22px 0 0;cursor:pointer;max-width:70vw}
+#spotSel option{background:#16191e;color:var(--text);font-family:var(--ui);font-size:16px}
+#spotSel:focus-visible{outline:2px solid var(--laterite);outline-offset:3px;border-radius:4px}
+h1{font-family:var(--display);font-weight:400;font-size:22px;line-height:1.1;margin:2px 0 0;text-wrap:balance}
+.iconbtn{pointer-events:auto;width:44px;height:44px;border-radius:12px;background:var(--glass);border:1px solid var(--line);color:var(--text);display:grid;place-items:center;cursor:pointer;flex:none}
+.iconbtn:focus-visible,.seg button:focus-visible{outline:2px solid var(--laterite);outline-offset:2px}
+
+.dock{position:fixed;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:calc(env(safe-area-inset-bottom,0px) + 14px);z-index:5;display:flex;flex-direction:column;gap:8px;align-items:center}
+.caption{background:var(--glass);border:1px solid var(--line);border-radius:12px;padding:8px 12px;font-size:13.5px;line-height:1.4;max-width:34rem;text-align:center;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.caption b{font-weight:600}
+.seg{display:flex;gap:4px;padding:4px;background:var(--glass);border:1px solid var(--line);border-radius:999px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);max-width:100%}
+.seg button{appearance:none;border:0;background:transparent;color:var(--muted);font:600 14px/1 var(--ui);padding:11px 14px;border-radius:999px;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.seg button .dot{width:8px;height:8px;border-radius:50%;background:currentColor}
+.seg button[aria-pressed="true"]{background:var(--text);color:var(--ink)}
+.seg button[data-state="dusk"][aria-pressed="true"] .dot{background:var(--laterite)}
+.seg button[data-state="blackout"][aria-pressed="true"] .dot{background:var(--night)}
+.hint{font-size:12px;color:var(--muted);text-shadow:0 1px 3px #000}
+.label{font-size:11px;color:var(--muted);text-shadow:0 1px 3px #000}
+
+#status{position:fixed;inset:0;display:grid;place-items:center;z-index:4;pointer-events:none;font-size:14px;color:var(--muted)}
+@media (max-width:380px){.seg button{padding:10px 10px;font-size:13px}#spotSel{font-size:19px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div id="pano" aria-label="360 degree view, drag to look around"></div>
+<div id="status">Loading view…</div>
+
+<header class="top">
+  <div class="chip">
+    <div class="eyebrow">Paragon Hostel · UNILORIN</div>
+    <label class="visually-hidden" for="spotSel">Choose a place</label>
+    <div class="selwrap"><select id="spotSel"></select><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></div>
+  </div>
+  <button class="iconbtn" id="fsBtn" type="button" aria-label="Full screen" title="Full screen">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+  </button>
+</header>
+
+<div class="dock">
+  <div class="caption" id="caption"></div>
+  <div class="seg" role="group" aria-label="Time of day">
+    <button type="button" id="b-noon" data-state="noon" aria-pressed="false"><span class="dot"></span>Noon</button>
+    <button type="button" id="b-dusk" data-state="dusk" aria-pressed="true"><span class="dot"></span>7 pm</button>
+    <button type="button" id="b-blackout" data-state="blackout" aria-pressed="false"><span class="dot"></span>1 am blackout</button>
+  </div>
+  <div class="hint">Drag to look around · pinch to zoom</div>
+  <div class="label">Concept visualisation from the project model, not approved for construction</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
+<script>
+const SPOTS = [
+  {id:"entrance",  name:"Entrance",           states:["noon","dusk"]},
+  {id:"reception", name:"Reception",          states:["noon","dusk"]},
+  {id:"stairb",    name:"Staircase B",        states:["noon","dusk","blackout"]},
+  {id:"gangway",   name:"First-floor gangway",states:["noon","dusk","blackout"]},
+  {id:"four",      name:"Room of Four",       states:["noon","dusk","blackout"]},
+  {id:"laundry",   name:"Laundry",            states:["noon","dusk"]},
+  {id:"inverter",  name:"Inverter room",      states:["noon","dusk"]},
+  {id:"courtyard", name:"Courtyard",          states:["noon","dusk","blackout"]}
+];
+const TEXT = {
+  noon:     "<b>12:00, daylight.</b> Solar runs the hostel and charges the battery.",
+  dusk:     "<b>7 pm, lights and fans on.</b> The sun has set; the 150 kWh battery carries the load.",
+  blackout: "<b>1 am, battery at 20%.</b> The inverter has cut off. Only the emergency lights stay on until the sun returns at about 8 am."
+};
+const TEXT_SPOT = {
+  "four:blackout": "<b>1 am, battery at 20%.</b> The inverter has cut off, so the room stays dark until the sun returns at about 8 am.",
+  "inverter:noon": "<b>12:00.</b> Solar charging the 10 × 15 kWh battery bank.",
+  "inverter:dusk": "<b>7 pm.</b> The battery bank now supplies the whole hostel."
+};
+const scenes = {};
+for (const sp of SPOTS) for (const st of sp.states)
+  scenes[sp.id+"_"+st] = {type:"equirectangular", panorama: sp.id+"_"+st+".jpg", hfov:105, pitch:-5, yaw:0};
+
+const status = document.getElementById("status");
+let spot = SPOTS.find(s=>s.id==="four"), state = "dusk";
+try { const h = location.hash.slice(1); const f = SPOTS.find(s=>s.id===h); if (f) spot = f; } catch(e) {}
+
+const sel = document.getElementById("spotSel");
+SPOTS.forEach(sp => { const o=document.createElement("option"); o.value=sp.id; o.textContent=sp.name; sel.appendChild(o); });
+
+function render(){
+  sel.value = spot.id;
+  document.getElementById("caption").innerHTML = TEXT_SPOT[spot.id+":"+state] || TEXT[state];
+  document.querySelectorAll(".seg button").forEach(b => {
+    b.hidden = !spot.states.includes(b.dataset.state);
+    b.setAttribute("aria-pressed", b.dataset.state === state ? "true" : "false");
+  });
+}
+let viewer = null;
+if (window.pannellum) {
+  viewer = pannellum.viewer("pano", {
+    default:{firstScene: spot.id+"_"+state, autoLoad:true, sceneFadeDuration:500, showControls:false, compass:false, minHfov:45, maxHfov:120, friction:0.2},
+    scenes
+  });
+  viewer.on("load", () => { status.hidden = true; });
+  viewer.on("error", () => { status.hidden = false; status.textContent = "This view couldn't load. Reload the page to try again."; });
+} else { status.textContent = "The 360 viewer couldn't load. Check your connection and reload."; }
+render();
+
+function go(newSpot, newState, keepView){
+  if (!newSpot.states.includes(newState)) newState = newSpot.states.includes("dusk") ? "dusk" : newSpot.states[0];
+  if (newSpot === spot && newState === state) return;
+  spot = newSpot; state = newState; render();
+  try { history.replaceState(null, "", "#"+spot.id); } catch(e) {}
+  if (!viewer) return;
+  status.hidden = false; status.textContent = "Loading view…";
+  if (keepView) viewer.loadScene(spot.id+"_"+state, "same", "same", "same");
+  else viewer.loadScene(spot.id+"_"+state);
+}
+document.querySelectorAll(".seg button").forEach(b => b.addEventListener("click", () => go(spot, b.dataset.state, true)));
+sel.addEventListener("change", () => go(SPOTS.find(s=>s.id===sel.value), state, false));
+window.addEventListener("hashchange", () => { const f = SPOTS.find(s=>s.id===location.hash.slice(1)); if (f) go(f, state, false); });
+
+const fsBtn = document.getElementById("fsBtn");
+const root = document.documentElement;
+if (!root.requestFullscreen && !root.webkitRequestFullscreen) fsBtn.hidden = true;
+fsBtn.addEventListener("click", () => {
+  try {
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    } else {
+      const p = (root.requestFullscreen || root.webkitRequestFullscreen).call(root);
+      if (p && p.catch) p.catch(() => { fsBtn.hidden = true; });
+    }
+  } catch (e) { fsBtn.hidden = true; }
+});
+</script>
+
+</body>
+</html>
