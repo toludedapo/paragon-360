@@ -1,1 +1,9 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "io.github.toludedapo.twa",
+        "sha256_cert_fingerprints": ["40:8D:6D:D1:35:B8:C1:EF:49:93:C4:CE:86:4D:90:AC:C9:9D:FB:FA:B6:DD:C2:24:EB:3D:05:A3:17:F3:0B:7B"]
+      }
+    }]
 
