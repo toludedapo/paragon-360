@@ -3,6 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d0f12">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}[hidden]{display:none!important}</style>
 </head>
 <body>
@@ -38,6 +42,8 @@ body{background:var(--ink);color:var(--text);font-family:var(--ui);overflow:hidd
 #spotSel option{background:#16191e;color:var(--text);font-family:var(--ui);font-size:16px}
 #spotSel:focus-visible{outline:2px solid var(--laterite);outline-offset:3px;border-radius:4px}
 h1{font-family:var(--display);font-weight:400;font-size:22px;line-height:1.1;margin:2px 0 0;text-wrap:balance}
+.btns{display:flex;gap:8px;flex:none}
+#tiltBtn[aria-pressed="true"]{background:var(--laterite);border-color:var(--laterite)}
 .iconbtn{pointer-events:auto;width:44px;height:44px;border-radius:12px;background:var(--glass);border:1px solid var(--line);color:var(--text);display:grid;place-items:center;cursor:pointer;flex:none}
 .iconbtn:focus-visible,.seg button:focus-visible{outline:2px solid var(--laterite);outline-offset:2px}
 
@@ -74,9 +80,14 @@ h1{font-family:var(--display);font-weight:400;font-size:22px;line-height:1.1;mar
     <label class="visually-hidden" for="spotSel">Choose a place</label>
     <div class="selwrap"><select id="spotSel"></select><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></div>
   </div>
+  <div class="btns">
+  <button class="iconbtn" id="tiltBtn" type="button" aria-label="Look around by tilting the phone" aria-pressed="false" title="Tilt to look" hidden>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M3 8c-1 2-1 6 0 8M21 8c1 2 1 6 0 8"/></svg>
+  </button>
   <button class="iconbtn" id="fsBtn" type="button" aria-label="Full screen" title="Full screen">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
   </button>
+  </div>
 </header>
 
 <div class="dock">
@@ -225,6 +236,33 @@ function walkTo(t, travelBearing){
 document.querySelectorAll(".seg button").forEach(b => b.addEventListener("click", () => go(spot, b.dataset.state, true)));
 sel.addEventListener("change", () => go(SPOTS.find(s=>s.id===sel.value), state, false));
 window.addEventListener("hashchange", () => { const f = SPOTS.find(s=>s.id===location.hash.slice(1)); if (f) go(f, state, false); });
+
+// Tilt to look (works on the hosted site; some app views block the motion sensor)
+const tiltBtn = document.getElementById("tiltBtn");
+let tiltOn = false;
+function showTilt(){ tiltBtn.hidden = false; }
+try {
+  if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === "function") showTilt();
+  else window.addEventListener("deviceorientation", function once(ev){ if (ev.alpha !== null) { showTilt(); window.removeEventListener("deviceorientation", once); } });
+} catch(e) {}
+tiltBtn.addEventListener("click", async () => {
+  if (!viewer) return;
+  if (tiltOn) { try { viewer.stopOrientation(); } catch(e) {} tiltOn = false; tiltBtn.setAttribute("aria-pressed","false"); return; }
+  try {
+    if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === "function") {
+      const r = await DeviceOrientationEvent.requestPermission();
+      if (r !== "granted") { tiltBtn.hidden = true; return; }
+    }
+    viewer.startOrientation(); tiltOn = true; tiltBtn.setAttribute("aria-pressed","true");
+  } catch(e) { tiltBtn.hidden = true; }
+});
+if (viewer) viewer.on("scenechange", () => { if (tiltOn) setTimeout(() => { try { viewer.startOrientation(); } catch(e) {} }, 600); });
+
+// Installable app (only where service workers are allowed, e.g. the GitHub site)
+try {
+  if ("serviceWorker" in navigator && location.protocol === "https:" && !/claude/.test(location.hostname))
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+} catch(e) {}
 
 const fsBtn = document.getElementById("fsBtn");
 const root = document.documentElement;
