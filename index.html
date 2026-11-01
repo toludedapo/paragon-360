@@ -53,6 +53,13 @@ h1{font-family:var(--display);font-weight:400;font-size:22px;line-height:1.1;mar
 .hint{font-size:12px;color:var(--muted);text-shadow:0 1px 3px #000}
 .label{font-size:11px;color:var(--muted);text-shadow:0 1px 3px #000}
 
+.pnlm-hotspot-base{position:absolute;visibility:hidden;top:0;z-index:1;cursor:pointer}
+.walk{display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:auto}
+.walk .ring{width:58px;height:58px;border-radius:50%;background:rgba(13,15,18,.55);border:2px solid rgba(236,231,222,.9);display:grid;place-items:center;box-shadow:0 4px 16px rgba(0,0,0,.45);transition:transform .15s}
+.walk:hover .ring{transform:scale(1.08)}
+.walk .ring svg{color:var(--text)}
+.walk .tag{background:var(--glass);border:1px solid var(--line);border-radius:999px;padding:5px 10px;font:600 12.5px/1 var(--ui);color:var(--text);white-space:nowrap;text-shadow:none}
+.walk.up .ring{border-color:var(--laterite)}
 #status{position:fixed;inset:0;display:grid;place-items:center;z-index:4;pointer-events:none;font-size:14px;color:var(--muted)}
 @media (max-width:380px){.seg button{padding:10px 10px;font-size:13px}#spotSel{font-size:19px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -79,7 +86,7 @@ h1{font-family:var(--display);font-weight:400;font-size:22px;line-height:1.1;mar
     <button type="button" id="b-dusk" data-state="dusk" aria-pressed="true"><span class="dot"></span>7 pm</button>
     <button type="button" id="b-blackout" data-state="blackout" aria-pressed="false"><span class="dot"></span>1 am blackout</button>
   </div>
-  <div class="hint">Drag to look around · pinch to zoom</div>
+  <div class="hint">Drag to look around · tap a circle to walk · pinch to zoom</div>
   <div class="label">Concept visualisation from the project model, not approved for construction</div>
 </div>
 
@@ -113,9 +120,59 @@ const TEXT_SPOT = {
   "aerial:noon": "<b>12:00, the whole site.</b> 75 kWp of solar panels on the roofs power the hostel by day.",
   "front:blackout": "<b>1 am, battery at 20%.</b> The inverter has cut off; only moonlight and the exit signs remain until about 8 am."
 };
+// Camera data from Unreal (metres; yaw = world yaw of the panorama centre, 0 = +X, 90 = +Y)
+const CAM = {
+  aerial:{x:-23.13,y:5.90,z:15.00,yaw:0}, front:{x:4.325,y:38.50,z:1.615,yaw:-90},
+  entrance:{x:-7.00,y:22.45,z:2.20,yaw:0}, reception:{x:3.00,y:21.50,z:2.20,yaw:-115},
+  reading:{x:4.34,y:20.44,z:5.66,yaw:-90}, stairb:{x:11.20,y:15.90,z:4.02,yaw:0},
+  gangway:{x:-4.90,y:13.00,z:5.65,yaw:-90}, balconyff:{x:7.08,y:1.24,z:5.73,yaw:-90},
+  balconygf:{x:7.08,y:1.24,z:1.60,yaw:-90}, four:{x:-8.60,y:18.68,z:2.20,yaw:90},
+  roomtwo:{x:-16.46,y:18.68,z:2.20,yaw:90}, laundry:{x:43.00,y:28.50,z:2.05,yaw:-90},
+  inverter:{x:6.01,y:14.90,z:5.65,yaw:90}, courtyard:{x:4.32,y:-12.00,z:1.60,yaw:90}
+};
+const CAM_STATE = {"aerial_dusk":{x:4.32,y:30.00,z:15.00,yaw:-90}};   // aerial dusk was rendered from the old spot
+const LINKS = [["front","entrance"],["entrance","reception"],["entrance","laundry"],["reception","stairb"],
+  ["reception","four"],["four","roomtwo"],["reception","balconygf"],["balconygf","courtyard"],["stairb","gangway"],
+  ["stairb","inverter"],["gangway","inverter"],["gangway","reading"],["stairb","reading"],["stairb","balconyff"]];
+const ONEWAY = [["aerial","front"],["aerial","courtyard"]];
+const MIRROR = 1;   // set to -1 if every arrow points the opposite way
+const wrap = a => ((a + 540) % 360) - 180;
+const deg = r => r * 180 / Math.PI;
+const byId = id => SPOTS.find(s => s.id === id);
+function camFor(id, st){ return CAM_STATE[id+"_"+st] || CAM[id]; }
+function stateFor(sp, st){ return sp.states.includes(st) ? st : (sp.states.includes("dusk") ? "dusk" : sp.states[0]); }
+function neighbours(id){
+  const n = [];
+  LINKS.forEach(([a,b]) => { if (a===id) n.push(b); if (b===id) n.push(a); });
+  ONEWAY.forEach(([a,b]) => { if (a===id) n.push(b); });
+  return n;
+}
+function hotspotsFor(id, st){
+  const c = camFor(id, st);
+  return neighbours(id).map(t => {
+    const tc = CAM[t];
+    const dx = tc.x - c.x, dy = tc.y - c.y, dz = tc.z - c.z, dist = Math.hypot(dx, dy) || 0.01;
+    const bearing = deg(Math.atan2(dy, dx));
+    let pitch = deg(Math.atan2(dz, dist));
+    pitch = id === "aerial" ? pitch : Math.max(-40, Math.min(25, pitch - 14));
+    const up = dz > 1, down = dz < -1;
+    return {pitch, yaw: MIRROR * wrap(bearing - c.yaw), cssClass: "walkhs", target: t, travel: bearing, up, down,
+      createTooltipFunc: makeArrow, createTooltipArgs: {name: byId(t).name, up, down},
+      clickHandlerFunc: (e, args) => walkTo(t, bearing), clickHandlerArgs: {}};
+  });
+}
+function makeArrow(div, a){
+  div.classList.add("walk");
+  if (a.up) div.classList.add("up");
+  const icon = a.up ? '<path d="M6 15l6-6 6 6"/><path d="M6 20l6-6 6 6" opacity=".45"/>'
+             : a.down ? '<path d="M6 9l6 6 6-6"/><path d="M6 4l6 6 6-6" opacity=".45"/>'
+             : '<path d="M12 19V5"/><path d="M6 11l6-6 6 6"/>';
+  div.innerHTML = '<div class="ring"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">'+icon+'</svg></div><div class="tag">'+a.name+(a.up?" (upstairs)":a.down?" (downstairs)":"")+'</div>';
+  div.setAttribute("role","button"); div.setAttribute("aria-label","Go to "+a.name);
+}
 const scenes = {};
 for (const sp of SPOTS) for (const st of sp.states)
-  scenes[sp.id+"_"+st] = {type:"equirectangular", panorama: sp.id+"_"+st+".jpg", hfov:105, pitch:-5, yaw:0};
+  scenes[sp.id+"_"+st] = {type:"equirectangular", panorama: sp.id+"_"+st+".jpg", hfov:105, pitch:-5, yaw:0, hotSpots: hotspotsFor(sp.id, st)};
 
 const status = document.getElementById("status");
 let spot = SPOTS.find(s=>s.id==="aerial"), state = "noon";
@@ -143,7 +200,7 @@ if (window.pannellum) {
 } else { status.textContent = "The 360 viewer couldn't load. Check your connection and reload."; }
 render();
 
-function go(newSpot, newState, keepView){
+function go(newSpot, newState, keepView, faceYaw){
   if (!newSpot.states.includes(newState)) newState = newSpot.states.includes("dusk") ? "dusk" : newSpot.states[0];
   if (newSpot === spot && newState === state) return;
   spot = newSpot; state = newState; render();
@@ -151,7 +208,19 @@ function go(newSpot, newState, keepView){
   if (!viewer) return;
   status.hidden = false; status.textContent = "Loading view…";
   if (keepView) viewer.loadScene(spot.id+"_"+state, "same", "same", "same");
+  else if (faceYaw !== undefined) viewer.loadScene(spot.id+"_"+state, -5, faceYaw, 105);
   else viewer.loadScene(spot.id+"_"+state);
+}
+let walking = false;
+function walkTo(t, travelBearing){
+  if (walking || !viewer) return;
+  walking = true;
+  const sp = byId(t), st = stateFor(sp, state), c = camFor(t, st);
+  const face = MIRROR * wrap(travelBearing - c.yaw);
+  const hs = (scenes[spot.id+"_"+state].hotSpots || []).find(h => h.target === t);
+  const reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (hs && !reduce) viewer.lookAt(Math.max(hs.pitch, -10), hs.yaw, 60, 450);
+  setTimeout(() => { go(sp, st, false); walking = false; }, reduce ? 0 : 470);
 }
 document.querySelectorAll(".seg button").forEach(b => b.addEventListener("click", () => go(spot, b.dataset.state, true)));
 sel.addEventListener("change", () => go(SPOTS.find(s=>s.id===sel.value), state, false));
